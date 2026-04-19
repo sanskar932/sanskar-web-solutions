@@ -1,0 +1,476 @@
+<!--
+  ================================================================
+  SECURITY NOTICE — READ BEFORE DEPLOYING
+  ================================================================
+  This admin dashboard is a STATIC HTML FRONTEND.
+
+  WHAT THIS MEANS:
+  - The admin key is entered in the browser and sent as an HTTP
+    header (x-admin-key) with every API request.
+  - Anyone who opens DevTools can see the API endpoint URL.
+  - The "security" here is entirely enforced by your BACKEND —
+    not by this HTML file.
+
+  REQUIRED BACKEND PROTECTIONS (implement these on Render):
+  1. Validate x-admin-key on every /api/v1/leads request.
+     Return HTTP 401 for missing or wrong keys.
+  2. Store the admin key in an environment variable on Render,
+     NEVER hardcode it in source code.
+  3. Add rate limiting to the /api/v1/leads endpoint (e.g., 
+     express-rate-limit) to prevent brute-force key guessing.
+  4. Enable CORS restrictions — only allow your domain to call
+     the API, not arbitrary origins.
+  5. For production, consider replacing this static page with
+     a server-rendered route (Express/Next.js) that checks a
+     session cookie before serving the dashboard HTML at all.
+
+  WHAT YOU MUST NOT DO:
+  - Never hardcode the actual admin key in this HTML file or JS.
+  - Never expose your database credentials in any frontend file.
+  - Never rely on meta robots "noindex" as a security measure —
+    it only hides the page from search engines, not from humans.
+  ================================================================
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Admin Dashboard | Sanskar Web Solutions</title>
+  <meta name="description" content="Sanskar Web Solutions admin dashboard — manage leads and enquiries." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="canonical" href="https://sanskarwebsolutions.in/admin.html" />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text y='.9em' font-size='80' x='10'>⚡</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" /></noscript>
+  <link rel="stylesheet" href="css/style.css" />
+
+  <style>
+    /* ---- Admin-specific styles (self-contained, no AOS needed) ---- */
+    .admin-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+
+    /* ---- LOGIN ---- */
+    #adminLogin {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: radial-gradient(ellipse at 50% 30%, rgba(14,165,233,0.1) 0%, transparent 60%), var(--bg);
+    }
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 3rem;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(12px);
+    }
+    .login-logo { font-size: 3rem; margin-bottom: 1rem; filter: drop-shadow(0 0 16px var(--accent)); }
+    .login-card h1 { font-size: var(--fs-2xl); color: var(--text); margin-bottom: 0.5rem; }
+    .login-card p { font-size: var(--fs-sm); color: var(--muted); margin-bottom: 2rem; }
+    .login-form { display: flex; flex-direction: column; gap: 1rem; text-align: left; }
+    #loginError {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+      color: #f87171;
+      font-size: var(--fs-sm);
+      display: none;
+    }
+    .login-warn {
+      margin-top: 1.5rem;
+      font-size: var(--fs-xs);
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    /* ---- DASHBOARD ---- */
+    #adminDash { display: none; flex: 1; flex-direction: column; }
+    .admin-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15,23,42,0.95);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .admin-header-left { display: flex; align-items: center; gap: 0.75rem; }
+    .admin-header-left .logo-text { font-family: var(--font-display); font-size: var(--fs-base); font-weight: 700; }
+    .admin-badge {
+      background: var(--accent-glow);
+      border: 1px solid var(--border-accent);
+      color: var(--accent);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 99px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .admin-header-right { display: flex; align-items: center; gap: 1rem; }
+    .admin-main { flex: 1; padding: 2rem 1.5rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+    /* ---- STAT BENTO ---- */
+    .admin-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .admin-stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      transition: var(--transition);
+    }
+    .admin-stat-card:hover { border-color: var(--border-accent); transform: translateY(-2px); }
+    .asc-label { font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); display: flex; align-items: center; gap: 0.4rem; }
+    .asc-label .fa { color: var(--accent); }
+    .asc-value { font-family: var(--font-display); font-size: var(--fs-3xl); font-weight: 800; color: var(--text); line-height: 1; }
+    .asc-sub { font-size: var(--fs-xs); color: var(--muted); }
+
+    /* ---- CONTROLS ---- */
+    .admin-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+    }
+    .admin-search-wrap { position: relative; flex: 1; min-width: 200px; }
+    .admin-search-wrap .fa { position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: var(--fs-sm); }
+    #leadsSearch { padding-left: 2.5rem; }
+    .admin-controls select { min-width: 160px; }
+    .admin-controls-right { display: flex; gap: 0.75rem; margin-left: auto; flex-wrap: wrap; }
+
+    /* ---- TABLE ---- */
+    .admin-table-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .admin-table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .admin-table-header h3 { font-family: var(--font-display); font-size: var(--fs-base); color: var(--text); }
+    .admin-table-header span { font-size: var(--fs-xs); color: var(--muted); }
+    .admin-table-outer { overflow-x: auto; }
+    table.leads-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+    .leads-table thead th {
+      background: rgba(255,255,255,0.03);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .leads-table tbody td {
+      padding: 0.85rem 1rem;
+      font-size: var(--fs-sm);
+      color: var(--muted);
+      border-bottom: 1px solid rgba(148,163,184,0.06);
+      vertical-align: middle;
+    }
+    .admin-lead-row:hover td { background: rgba(14,165,233,0.04); color: var(--text); }
+    .cell-name { color: var(--text) !important; font-weight: 600; }
+    .cell-actions { display: flex; gap: 0.5rem; align-items: center; }
+    .admin-wa-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      background: rgba(37,211,102,0.1);
+      border: 1px solid rgba(37,211,102,0.3);
+      border-radius: var(--radius-sm);
+      color: #25d366;
+      font-size: 1rem;
+      transition: var(--transition);
+    }
+    .admin-wa-btn:hover { background: rgba(37,211,102,0.2); transform: translateY(-2px); }
+    .admin-preview-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      background: var(--accent-glow);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-sm);
+      color: var(--accent);
+      font-size: 0.85rem;
+      transition: var(--transition);
+    }
+    .admin-preview-btn:hover { background: rgba(14,165,233,0.2); transform: translateY(-2px); }
+
+    /* ---- LOADING / ERROR ---- */
+    #leadsLoading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--muted);
+      display: none;
+    }
+    #leadsLoading .fa { font-size: 2rem; color: var(--accent); margin-bottom: 0.75rem; display: block; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #leadsErrorMsg {
+      margin: 1rem 1.5rem;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.25rem;
+      color: #f87171;
+      font-size: var(--fs-sm);
+      display: none;
+    }
+
+    /* ---- MODAL ---- */
+    .admin-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.85);
+      backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .admin-modal {
+      background: var(--card-solid);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-xl);
+      padding: 2rem;
+      width: 100%;
+      max-width: 520px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+    }
+    .admin-modal-title { font-family: var(--font-display); font-size: var(--fs-xl); color: var(--text); margin-bottom: 1.5rem; }
+    .admin-modal-row { display: flex; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+    .admin-modal-row:last-of-type { border-bottom: none; }
+    .admin-modal-label { font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); min-width: 80px; padding-top: 2px; }
+    .admin-modal-value { font-size: var(--fs-sm); color: var(--text); flex: 1; word-break: break-word; }
+    .admin-modal-close { margin-top: 1.5rem; width: 100%; justify-content: center; min-height: 44px; background: var(--card); border: 1px solid var(--border); color: var(--muted); border-radius: var(--radius-sm); font-family: var(--font-display); font-weight: 600; font-size: var(--fs-sm); transition: var(--transition); }
+    .admin-modal-close:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ---- RESPONSIVE ---- */
+    @media (max-width: 768px) {
+      .admin-stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .admin-controls { flex-direction: column; }
+      .admin-controls-right { margin-left: 0; width: 100%; }
+      .admin-controls-right .btn { flex: 1; justify-content: center; }
+      .admin-main { padding: 1rem; }
+    }
+    @media (max-width: 480px) {
+      .admin-stats-grid { grid-template-columns: 1fr 1fr; }
+      .login-card { padding: 2rem 1.5rem; }
+    }
+  </style>
+</head>
+<body class="admin-page">
+
+  <!-- ============================================================
+       ADMIN LOGIN SCREEN
+  ============================================================ -->
+  <div id="adminLogin">
+    <div class="login-card">
+      <div class="login-logo">⚡</div>
+      <h1>Admin Panel</h1>
+      <p>Sanskar Web Solutions — Restricted Access</p>
+      <div id="loginError"></div>
+      <form id="adminLoginForm" class="login-form" novalidate>
+        <div class="form-group">
+          <label for="adminKeyInput">Admin Key</label>
+          <input
+            type="password"
+            id="adminKeyInput"
+            class="form-control"
+            placeholder="Enter your admin key"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; min-height:48px;">
+          <i class="fa fa-lock-open"></i> Access Dashboard
+        </button>
+      </form>
+      <p class="login-warn">
+        <i class="fa fa-shield-halved"></i>
+        This panel is for authorised use only. All access is logged.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ADMIN DASHBOARD
+  ============================================================ -->
+  <div id="adminPanel">
+    <div id="adminDash">
+
+      <!-- Admin Header -->
+      <header class="admin-header">
+        <div class="admin-header-left">
+          <span style="font-size:1.4rem; filter:drop-shadow(0 0 8px var(--accent));">⚡</span>
+          <span class="logo-text">Sanskar <span class="accent">Web</span></span>
+          <span class="admin-badge">Admin</span>
+        </div>
+        <div class="admin-header-right">
+          <a href="index.html" class="btn btn-ghost" style="padding:0.5rem 1rem; font-size:var(--fs-xs);">
+            <i class="fa fa-house"></i> Site
+          </a>
+          <button class="btn btn-ghost" id="adminLogout" style="padding:0.5rem 1rem; font-size:var(--fs-xs); color:#f87171; border-color:rgba(239,68,68,0.3);">
+            <i class="fa fa-right-from-bracket"></i> Logout
+          </button>
+        </div>
+      </header>
+
+      <main class="admin-main">
+
+        <!-- Stat Cards Bento -->
+        <div class="admin-stats-grid">
+          <div class="admin-stat-card">
+            <div class="asc-label"><i class="fa fa-users"></i> Total Leads</div>
+            <div class="asc-value" id="statTotal">—</div>
+            <div class="asc-sub">All time submissions</div>
+          </div>
+          <div class="admin-stat-card">
+            <div class="asc-label"><i class="fa fa-calendar-day"></i> Today</div>
+            <div class="asc-value" id="statToday">—</div>
+            <div class="asc-sub">Leads received today</div>
+          </div>
+          <div class="admin-stat-card">
+            <div class="asc-label"><i class="fa fa-calendar-week"></i> This Week</div>
+            <div class="asc-value" id="statWeek">—</div>
+            <div class="asc-sub">Last 7 days</div>
+          </div>
+          <div class="admin-stat-card">
+            <div class="asc-label"><i class="fa fa-star"></i> New</div>
+            <div class="asc-value" id="statNew">—</div>
+            <div class="asc-sub">Uncontacted leads</div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="admin-controls">
+          <div class="admin-search-wrap">
+            <i class="fa fa-magnifying-glass"></i>
+            <input type="search" id="leadsSearch" class="form-control" placeholder="Search by name, email, phone…" />
+          </div>
+          <select id="filterService" class="form-control">
+            <option value="">All Services</option>
+            <option value="website">Website</option>
+            <option value="graphic-design">Graphic Design</option>
+            <option value="video-editing">Video Editing</option>
+            <option value="ai-automation">AI Automation</option>
+            <option value="seo">Local SEO</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="other">Other</option>
+          </select>
+          <select id="filterSort" class="form-control">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="name_az">Name A–Z</option>
+            <option value="name_za">Name Z–A</option>
+          </select>
+          <div class="admin-controls-right">
+            <button class="btn btn-ghost" id="refreshLeads" style="font-size:var(--fs-sm); padding:0.6rem 1rem;">
+              <i class="fa fa-rotate-right"></i> Refresh
+            </button>
+            <button class="btn btn-primary" id="exportCSV" style="font-size:var(--fs-sm); padding:0.6rem 1rem;">
+              <i class="fa fa-file-csv"></i> Export CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Leads Table -->
+        <div class="admin-table-wrap">
+          <div class="admin-table-header">
+            <h3>All Leads</h3>
+            <span id="leadsCountLabel">Loading…</span>
+          </div>
+
+          <div id="leadsLoading">
+            <i class="fa fa-spinner"></i>
+            <p>Fetching leads from the server…</p>
+          </div>
+          <div id="leadsErrorMsg"></div>
+
+          <div class="admin-table-outer">
+            <table class="leads-table" aria-label="Leads table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Service</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="leadsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- admin.html only needs main.js for the dashboard logic.
+       particles.js, typed.js, and AOS are not used on this page. -->
+  <script src="js/main.js"></script>
+
+  <script>
+    /* Live lead count label — updates whenever the table body changes */
+    document.addEventListener('DOMContentLoaded', () => {
+      const tbody = document.getElementById('leadsTableBody');
+      const label = document.getElementById('leadsCountLabel');
+      if (!tbody || !label) return;
+
+      const observer = new MutationObserver(() => {
+        const rows = tbody.querySelectorAll('.admin-lead-row');
+        label.textContent = rows.length + ' lead' + (rows.length !== 1 ? 's' : '');
+      });
+      observer.observe(tbody, { childList: true });
+    });
+  </script>
+</body>
+</html>

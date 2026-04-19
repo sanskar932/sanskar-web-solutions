@@ -1,0 +1,15 @@
+# robots.txt — Sanskar Web Solutions
+# https://sanskarwebsolutions.in
+
+# Allow all crawlers on all public pages
+User-agent: *
+Allow: /
+
+# Block the admin dashboard from all crawlers
+Disallow: /admin.html
+
+# Block the assets folder from being indexed (images don't need to be crawled)
+Disallow: /assets/
+
+# Sitemap location
+Sitemap: https://sanskarwebsolutions.in/sitemap.xml
